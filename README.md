@@ -61,6 +61,7 @@ Topic: `<topic_prefix>.<schema>.<table>`. Key: the primary key as JSON. Value:
 | `u`  | update   | row, with `REPLICA IDENTITY FULL` | row     |
 | `d`  | delete   | row, with `REPLICA IDENTITY FULL` | `null`  |
 | `t`  | truncate | `null`                           | `null`  |
+| `r`  | snapshot | `null`                           | row     |
 
 Values keep their JSON type where it is unambiguous (booleans, integers, floats, `json`
 and `jsonb`). Everything else, including `numeric` and timestamps, is passed as the string
@@ -89,6 +90,17 @@ Then change something in the demo database and watch the topics in Kafka UI:
 ```bash
 docker compose exec postgres psql -U postgres -d shop -c "UPDATE orders SET status = 'shipped' WHERE id = 1"
 ```
+
+## Initial snapshot
+
+By default a new pipeline first copies every existing row (`"op": "r"`) and then streams
+changes. The copy is read inside the snapshot that PostgreSQL exports when the
+replication slot is created, so it lines up exactly with the start of the stream:
+nothing is lost and nothing is read twice ([ADR 4](docs/adr/0004-initial-snapshot.md)).
+
+Snapshot events carry the slot's consistent point as `lsn` and have no `xid` or
+`committed_at`. To stream changes only, create the pipeline with
+`"initial_snapshot": false`.
 
 ## Managing pipelines
 
@@ -125,7 +137,7 @@ resumed. The status page shows how much.
 - [x] Stage 0 — project skeleton, tooling, local infrastructure
 - [x] Stage 1 — `pgoutput` decoder, streaming to Kafka, at-least-once delivery
 - [x] Stage 2 — pipeline metadata in PostgreSQL, HTTP API, status page
-- [ ] Stage 3 — initial snapshot with a gap-free handoff to streaming
+- [x] Stage 3 — initial snapshot with a gap-free handoff to streaming
 - [ ] Stage 4 — column filters, PII masking, topic routing, schema tracking
 - [ ] Stage 5 — NATS JetStream sink
 - [ ] Stage 6 — metrics and integration tests

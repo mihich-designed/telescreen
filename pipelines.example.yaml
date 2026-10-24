@@ -6,6 +6,8 @@ pipelines:
       # Optional, both default to telescreen_<name>.
       publication: telescreen_shop
       slot: telescreen_shop
+    # Copy existing rows before streaming changes (default: true).
+    initial_snapshot: true
     tables:
       - public.customers
       - public.orders
