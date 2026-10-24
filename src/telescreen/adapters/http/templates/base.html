@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}telescreen{% endblock %}</title>
+  <script src="https://unpkg.com/htmx.org@2.0.3/dist/htmx.min.js" defer></script>
+  <style>
+    :root {
+      --bg: #f6f7f5; --panel: #ffffff; --text: #1c1f1d; --muted: #6b716d;
+      --border: #dfe3df; --accent: #2f6f4f;
+      --ok: #2f6f4f; --warn: #a66a00; --bad: #b3261e; --idle: #6b716d;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #121513; --panel: #1a1e1b; --text: #e3e7e4; --muted: #8d948f;
+        --border: #2c322e; --accent: #7cc39b;
+        --ok: #7cc39b; --warn: #e0a84a; --bad: #f08a80; --idle: #8d948f;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text);
+           font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    header { display: flex; align-items: baseline; gap: 1rem; padding: 1rem 1.5rem;
+             border-bottom: 1px solid var(--border); background: var(--panel); }
+    header a.brand { font-weight: 700; color: var(--text); text-decoration: none; }
+    header .tagline { color: var(--muted); font-size: .9rem; }
+    main { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1rem; }
+    a { color: var(--accent); }
+    h1 { font-size: 1.4rem; margin: 0 0 1rem; }
+    .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: .6rem .8rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    th { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+    tr:last-child td { border-bottom: 0; }
+    td.num { font-variant-numeric: tabular-nums; }
+    code { font: .85rem ui-monospace, "Cascadia Mono", monospace; }
+    .badge { display: inline-block; padding: .05rem .5rem; border-radius: 999px; font-size: .8rem;
+             border: 1px solid currentColor; }
+    .s-active, .s-streaming { color: var(--ok); }
+    .s-paused, .s-starting, .s-retrying { color: var(--warn); }
+    .s-failed, .s-deleting { color: var(--bad); }
+    .s-idle { color: var(--idle); }
+    .error { color: var(--bad); white-space: pre-wrap; }
+    .muted { color: var(--muted); }
+    .empty { padding: 2rem; text-align: center; color: var(--muted); }
+    button, .button { font: inherit; padding: .4rem .9rem; border-radius: 6px; cursor: pointer;
+                      border: 1px solid var(--border); background: var(--panel); color: var(--text);
+                      text-decoration: none; display: inline-block; }
+    .button.primary, button.primary { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+    button.danger { color: var(--bad); border-color: var(--bad); }
+    form.inline { display: inline; }
+    dl { display: grid; grid-template-columns: max-content 1fr; gap: .4rem 1.5rem; padding: 1rem 1.2rem; margin: 0; }
+    dt { color: var(--muted); }
+    dd { margin: 0; overflow-wrap: anywhere; }
+    label { display: block; margin-bottom: 1rem; }
+    label span { display: block; font-size: .9rem; color: var(--muted); margin-bottom: .25rem; }
+    input, textarea { width: 100%; font: inherit; padding: .5rem; border-radius: 6px;
+                      border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+    .form { padding: 1.2rem; max-width: 560px; }
+    .actions { display: flex; gap: .5rem; margin: 1rem 0; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+  <header>
+    <a class="brand" href="/">telescreen</a>
+    <span class="tagline">Big Brother is watching your WAL</span>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

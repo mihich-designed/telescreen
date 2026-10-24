@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="toolbar">
+  <h1>Pipelines</h1>
+  <a class="button primary" href="/pipelines/new">New pipeline</a>
+</div>
+<div class="panel">
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Status</th>
+        <th>Worker</th>
+        <th>Tables</th>
+        <th>Checkpoint</th>
+        <th>Slot lag</th>
+        <th>Updated</th>
+      </tr>
+    </thead>
+    <tbody hx-get="/partials/pipelines" hx-trigger="every 3s" hx-swap="innerHTML">
+      {% include "partials/pipeline_rows.html" %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

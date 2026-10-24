@@ -5,11 +5,10 @@ from pydantic import ValidationError
 
 from telescreen.adapters.config.yaml_pipelines import load_pipelines
 from telescreen.adapters.secrets import EnvSecretResolver, SecretNotFoundError
-from telescreen.domain.pipeline import SinkSpec, SourceSpec
-from telescreen.domain.table import TableName
+from telescreen.application.pipelines import CreatePipeline
 
 
-def test_load_pipelines_applies_defaults(tmp_path: Path) -> None:
+def test_load_pipelines(tmp_path: Path) -> None:
     path = tmp_path / "pipelines.yaml"
     path.write_text(
         """
@@ -33,11 +32,18 @@ pipelines:
 
     shop, billing = load_pipelines(path)
 
-    assert shop.source == SourceSpec("env:SHOP_DSN", "telescreen_shop_main", "telescreen_shop_main")
-    assert shop.sink == SinkSpec("kafka", "shop-main")
-    assert shop.tables == (TableName("public", "customers"), TableName("sales", "orders"))
-    assert billing.source == SourceSpec("env:BILLING_DSN", "billing_pub", "billing_slot")
-    assert billing.topic_for(TableName("public", "invoices")) == "cdc.billing.public.invoices"
+    assert shop == CreatePipeline(
+        name="shop-main", dsn="env:SHOP_DSN", tables=["customers", "sales.orders"]
+    )
+    assert billing == CreatePipeline(
+        name="billing",
+        dsn="env:BILLING_DSN",
+        tables=["public.invoices"],
+        publication="billing_pub",
+        slot="billing_slot",
+        sink_kind="kafka",
+        topic_prefix="cdc.billing",
+    )
 
 
 def test_load_pipelines_rejects_unknown_fields(tmp_path: Path) -> None:

@@ -4,3 +4,7 @@ class DomainError(Exception):
 
 class InvalidPipelineError(DomainError):
     pass
+
+
+class InvalidTransitionError(DomainError):
+    pass

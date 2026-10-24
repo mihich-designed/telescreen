@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% set p = view.pipeline %}
+{% set rt = view.runtime %}
+{% block title %}{{ p.name }} · telescreen{% endblock %}
+{% block content %}
+<p><a href="/">← All pipelines</a></p>
+<h1>{{ p.name }} <span class="badge s-{{ p.status.value }}">{{ p.status.value }}</span></h1>
+
+<div class="actions">
+  {% if p.status.value == "active" %}
+  <form class="inline" method="post" action="/pipelines/{{ p.name }}/pause"><button>Pause</button></form>
+  {% elif p.status.value == "paused" %}
+  <form class="inline" method="post" action="/pipelines/{{ p.name }}/resume"><button class="primary">Resume</button></form>
+  {% elif p.status.value == "failed" %}
+  <form class="inline" method="post" action="/pipelines/{{ p.name }}/retry"><button class="primary">Retry</button></form>
+  {% endif %}
+  {% if p.status.value != "deleting" %}
+  <form class="inline" method="post" action="/pipelines/{{ p.name }}/delete"
+        onsubmit="return confirm('Delete {{ p.name }}? Its replication slot will be dropped.')">
+    <button class="danger">Delete</button>
+  </form>
+  {% endif %}
+</div>
+
+{% if p.last_error %}<p class="error">{{ p.last_error }}</p>{% endif %}
+
+<div class="panel">
+  <dl>
+    <dt>Source</dt><dd><code>{{ p.source.dsn }}</code></dd>
+    <dt>Publication</dt><dd><code>{{ p.source.publication }}</code></dd>
+    <dt>Slot</dt><dd><code>{{ p.source.slot }}</code></dd>
+    <dt>Sink</dt><dd>{{ p.sink.kind }}</dd>
+    <dt>Tables</dt>
+    <dd>{% for t in p.tables %}<code>{{ t }}</code> → <code>{{ p.topic_for(t) }}</code><br>{% endfor %}</dd>
+    <dt>Checkpoint</dt><dd><code>{{ view.checkpoint or "—" }}</code></dd>
+    {% if rt %}
+    <dt>Worker</dt><dd>{{ rt.worker }} · <span class="badge s-{{ rt.state.value }}">{{ rt.state.value }}</span></dd>
+    <dt>Slot lag</dt><dd>{{ rt.lag_bytes | human_bytes }}</dd>
+    <dt>Reported</dt><dd>{{ rt.updated_at.strftime("%Y-%m-%d %H:%M:%S %Z") if rt.updated_at else "—" }}</dd>
+    {% if rt.error %}<dt>Last error</dt><dd class="error">{{ rt.error }}</dd>{% endif %}
+    {% else %}
+    <dt>Worker</dt><dd class="muted">not running</dd>
+    {% endif %}
+  </dl>
+</div>
+{% endblock %}

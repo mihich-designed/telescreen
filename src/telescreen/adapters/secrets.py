@@ -3,8 +3,10 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 
+from telescreen.application.ports import FatalPipelineError
 
-class SecretNotFoundError(LookupError):
+
+class SecretNotFoundError(FatalPipelineError, LookupError):
     pass
 
 

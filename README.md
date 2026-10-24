@@ -11,9 +11,17 @@ structured events and publishes them to Kafka or NATS JetStream.
 ## How it works
 
 ```
-PostgreSQL ──pgoutput──▶ replication thread ──queue──▶ decoder ──▶ ChangeCapture ──▶ sink (Kafka)
-    ▲                                                                   │
-    └──────────────── flush LSN (only after the broker acked) ──────────┘
+operator ──▶ telescreen-web (HTTP API, status pages)
+                 │ desired state
+                 ▼
+             metadata DB: pipelines, checkpoints, runtime status
+                 ▲ reconcile every 2 s
+                 │
+             telescreen-worker: Supervisor ─▶ PipelineRunner per pipeline
+
+PostgreSQL ──pgoutput──▶ decoder ──▶ ChangeCapture ──▶ sink (Kafka)
+    ▲                                      │
+    └──── flush LSN (only after broker ack)┘
 ```
 
 - Telescreen creates a **publication** for the configured tables and a **logical
@@ -63,8 +71,17 @@ PostgreSQL produced, so no precision is lost.
 ```bash
 docker compose up -d
 cp .env.example .env
-cp pipelines.example.yaml pipelines.yaml
-uv run telescreen-worker
+uv run alembic upgrade head
+uv run telescreen-web       # http://localhost:8000, API docs at /docs
+uv run telescreen-worker    # in another terminal
+```
+
+Create a pipeline on the status page, through the API, or import a YAML file:
+
+```bash
+curl -X POST localhost:8000/api/pipelines -H 'Content-Type: application/json'   -d '{"name": "shop", "dsn": "env:SHOP_DSN", "tables": ["public.customers", "public.orders"]}'
+
+uv run telescreen-import pipelines.example.yaml
 ```
 
 Then change something in the demo database and watch the topics in Kafka UI:
@@ -72,6 +89,26 @@ Then change something in the demo database and watch the topics in Kafka UI:
 ```bash
 docker compose exec postgres psql -U postgres -d shop -c "UPDATE orders SET status = 'shipped' WHERE id = 1"
 ```
+
+## Managing pipelines
+
+| Method   | Path                           | Effect                                           |
+|----------|--------------------------------|--------------------------------------------------|
+| `GET`    | `/api/pipelines`               | All pipelines with runtime status and checkpoint |
+| `POST`   | `/api/pipelines`               | Create a pipeline                                |
+| `GET`    | `/api/pipelines/{name}`        | One pipeline                                     |
+| `POST`   | `/api/pipelines/{name}/pause`  | Stop streaming, keep the slot                    |
+| `POST`   | `/api/pipelines/{name}/resume` | Continue from the last acknowledged position     |
+| `POST`   | `/api/pipelines/{name}/retry`  | Restart a failed pipeline                        |
+| `DELETE` | `/api/pipelines/{name}`        | Drop the slot and publication, then remove       |
+
+The API only records the desired state. The worker picks it up within a couple of
+seconds ([ADR 3](docs/adr/0003-desired-state-and-reconciliation.md)). Errors that
+retrying cannot fix, such as a missing table or an unset secret, move the pipeline to
+`failed`; everything else is retried with exponential backoff.
+
+A paused pipeline keeps its replication slot, so PostgreSQL retains WAL until it is
+resumed. The status page shows how much.
 
 ## Things to know
 
@@ -87,7 +124,7 @@ docker compose exec postgres psql -U postgres -d shop -c "UPDATE orders SET stat
 
 - [x] Stage 0 — project skeleton, tooling, local infrastructure
 - [x] Stage 1 — `pgoutput` decoder, streaming to Kafka, at-least-once delivery
-- [ ] Stage 2 — pipeline metadata in PostgreSQL, HTTP API, status page
+- [x] Stage 2 — pipeline metadata in PostgreSQL, HTTP API, status page
 - [ ] Stage 3 — initial snapshot with a gap-free handoff to streaming
 - [ ] Stage 4 — column filters, PII masking, topic routing, schema tracking
 - [ ] Stage 5 — NATS JetStream sink
@@ -105,7 +142,9 @@ uv run mypy
 ```
 
 Integration tests run against the compose PostgreSQL when `TELESCREEN_TEST_SOURCE_DSN`
-is set (see `.env.example`) and are skipped otherwise.
+and `TELESCREEN_TEST_DATABASE_URL` are set (see `.env.example`) and are skipped otherwise.
+
+Architecture decisions are recorded in [docs/adr](docs/adr).
 
 | Service    | Address                                     |
 |------------|---------------------------------------------|
@@ -113,8 +152,8 @@ is set (see `.env.example`) and are skipped otherwise.
 | Kafka      | `localhost:9094`                            |
 | Kafka UI   | http://localhost:8081                       |
 
-The PostgreSQL container hosts two databases: `telescreen` for the service's own metadata
-and `shop`, a demo source with a few tables to capture.
+The PostgreSQL container hosts `telescreen` for the service's own metadata, `shop`, a demo
+source with a few tables to capture, and `telescreen_test` for integration tests.
 
 ## License
 

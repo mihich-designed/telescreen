@@ -18,12 +18,15 @@ The code is split into four layers. Dependencies point inwards only.
 | `adapters`    | Implementations of ports: PostgreSQL, Kafka, NATS, HTTP, files.  | `application`, `domain` |
 | `bootstrap`   | Settings, wiring, process entrypoints.                           | everything            |
 
-Wiring is done by hand in `bootstrap` (a composition root) instead of a DI container: the
-object graph is small, and explicit construction keeps it easy to follow.
+Wiring happens only in `bootstrap`. It started as hand-written construction and moved
+to a DI container once there were several processes to assemble, see
+[ADR 2](0002-dependency-injection-with-dishka.md).
 
 ## Consequences
 
 - Use cases are tested with in-memory fakes of the ports.
 - Every adapter can be replaced without touching the core (for example, Kafka and NATS
   implement the same `EventSink` port).
-- Some boilerplate in `bootstrap` is the price for not having a container.
+- Infrastructure code lives in `adapters`. SQLAlchemy tables are in
+  `adapters/persistence/tables.py`; Alembic migrations sit in `migrations/` at the
+  repository root because they are a deployment tool, not part of the running service.
