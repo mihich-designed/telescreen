@@ -101,12 +101,14 @@ class WorkerProvider(Provider):
         sinks: SinkFactory,
         checkpoints: CheckpointStore,
         runtime: RuntimeStore,
+        uow: UnitOfWorkFactory,
     ) -> PipelineRunner:
         return PipelineRunner(
             source=source,
             sinks=sinks,
             checkpoints=checkpoints,
             runtime=runtime,
+            uow=uow,
             worker_id=settings.worker_id,
             status_interval=settings.status_interval,
         )

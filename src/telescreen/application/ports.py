@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 from types import TracebackType
-from typing import Protocol, Self
+from typing import Any, Protocol, Self
 
 from telescreen.application.wal import WalMessage
 from telescreen.domain.lsn import Lsn
@@ -35,9 +35,30 @@ class ReplicationSession(Protocol):
         ...
 
 
+class SnapshotSession(Protocol):
+    """A consistent view of the source at the moment a replication slot was created."""
+
+    @property
+    def consistent_point(self) -> Lsn:
+        """Streaming from the slot continues exactly after this position."""
+        ...
+
+    def rows(self, table: TableName) -> AsyncIterator[dict[str, Any]]:
+        """Every row of ``table`` as it was at the consistent point."""
+        ...
+
+
 class ReplicationSource(Protocol):
     async def prepare(self, pipeline: Pipeline) -> SourceCatalog:
-        """Make sure the publication and the replication slot exist."""
+        """Check the tables and make sure the publication matches them."""
+        ...
+
+    async def ensure_slot(self, pipeline: Pipeline) -> None:
+        """Create the replication slot unless it exists."""
+        ...
+
+    def snapshot(self, pipeline: Pipeline) -> AbstractAsyncContextManager[SnapshotSession]:
+        """(Re)create the replication slot and read the snapshot it exports."""
         ...
 
     def open(
@@ -121,6 +142,7 @@ class SinkFactory(Protocol):
 
 class RuntimeState(StrEnum):
     STARTING = "starting"
+    SNAPSHOTTING = "snapshotting"
     STREAMING = "streaming"
     RETRYING = "retrying"
 

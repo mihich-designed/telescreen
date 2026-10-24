@@ -8,10 +8,13 @@ from contextlib import AbstractAsyncContextManager
 import asyncpg
 
 from telescreen.adapters.postgres.replication import PsycopgReplicationSession
+from telescreen.adapters.postgres.snapshot import PostgresSnapshotSession, drop_slot
+from telescreen.adapters.postgres.sql import quote_ident, quote_table
 from telescreen.application.ports import (
     FatalPipelineError,
     ReplicationSession,
     SecretResolver,
+    SnapshotSession,
     SourceCatalog,
 )
 from telescreen.domain.lsn import Lsn
@@ -21,14 +24,6 @@ from telescreen.domain.table import TableName
 
 class SourceSetupError(FatalPipelineError):
     pass
-
-
-def quote_ident(identifier: str) -> str:
-    return '"' + identifier.replace('"', '""') + '"'
-
-
-def quote_table(table: TableName) -> str:
-    return f"{quote_ident(table.schema)}.{quote_ident(table.name)}"
 
 
 _PRIMARY_KEYS = """
@@ -62,10 +57,21 @@ class PostgresReplicationSource:
             if missing := sorted(set(names) - existing):
                 raise SourceSetupError(f"Tables not found in the source: {', '.join(missing)}")
             await self._ensure_publication(connection, pipeline)
-            await self._ensure_slot(connection, pipeline.source.slot)
             return SourceCatalog(primary_keys=await self._primary_keys(connection, names))
         finally:
             await connection.close()
+
+    async def ensure_slot(self, pipeline: Pipeline) -> None:
+        connection = await asyncpg.connect(self._secrets.resolve(pipeline.source.dsn))
+        try:
+            await self._ensure_slot(connection, pipeline.source.slot)
+        finally:
+            await connection.close()
+
+    def snapshot(self, pipeline: Pipeline) -> AbstractAsyncContextManager[SnapshotSession]:
+        return PostgresSnapshotSession(
+            dsn=self._secrets.resolve(pipeline.source.dsn), slot=pipeline.source.slot
+        )
 
     def open(
         self, pipeline: Pipeline, start_lsn: Lsn | None
@@ -92,11 +98,7 @@ class PostgresReplicationSource:
     async def teardown(self, pipeline: Pipeline) -> None:
         connection = await asyncpg.connect(self._secrets.resolve(pipeline.source.dsn))
         try:
-            await connection.execute(
-                "SELECT pg_drop_replication_slot(slot_name) FROM pg_replication_slots "
-                "WHERE slot_name = $1",
-                pipeline.source.slot,
-            )
+            await drop_slot(connection, pipeline.source.slot)
             await connection.execute(
                 f"DROP PUBLICATION IF EXISTS {quote_ident(pipeline.source.publication)}"
             )

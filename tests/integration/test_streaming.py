@@ -51,7 +51,8 @@ async def test_streams_inserts_updates_and_deletes(source_dsn: str, scratch_tabl
     pipeline = make_pipeline(scratch_table)
     source = PostgresReplicationSource(EnvSecretResolver({"SOURCE": source_dsn}))
     checkpoints = MemoryCheckpointStore()
-    await source.prepare(pipeline)  # creates the slot, so changes below are captured
+    await source.prepare(pipeline)
+    await source.ensure_slot(pipeline)  # changes made from now on are captured
 
     connection = await asyncpg.connect(source_dsn)
     try:
@@ -81,6 +82,7 @@ async def test_resumes_after_acknowledged_position(source_dsn: str, scratch_tabl
     source = PostgresReplicationSource(EnvSecretResolver({"SOURCE": source_dsn}))
     checkpoints = MemoryCheckpointStore()
     await source.prepare(pipeline)
+    await source.ensure_slot(pipeline)
 
     connection = await asyncpg.connect(source_dsn)
     try:

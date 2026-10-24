@@ -1,4 +1,5 @@
-"""Keeps a pipeline running: prepares the source, streams, restarts on failure."""
+"""Keeps a pipeline running: prepares the source, copies existing rows once,
+streams changes, restarts on failure."""
 
 from __future__ import annotations
 
@@ -10,13 +11,17 @@ import time
 from telescreen.application.capture import ChangeCapture, FlushPolicy
 from telescreen.application.ports import (
     CheckpointStore,
+    EventSink,
     FatalPipelineError,
     ReplicationSource,
     RuntimeState,
     RuntimeStatus,
     RuntimeStore,
     SinkFactory,
+    SourceCatalog,
+    UnitOfWorkFactory,
 )
+from telescreen.application.snapshot import SnapshotCapture
 from telescreen.domain.pipeline import Pipeline
 
 logger = logging.getLogger(__name__)
@@ -29,6 +34,7 @@ class PipelineRunner:
         sinks: SinkFactory,
         checkpoints: CheckpointStore,
         runtime: RuntimeStore,
+        uow: UnitOfWorkFactory,
         worker_id: str,
         policy: FlushPolicy | None = None,
         *,
@@ -40,6 +46,7 @@ class PipelineRunner:
         self._sinks = sinks
         self._checkpoints = checkpoints
         self._runtime = runtime
+        self._uow = uow
         self._worker_id = worker_id
         self._policy = policy
         self._status_interval = status_interval
@@ -49,11 +56,38 @@ class PipelineRunner:
     async def run_once(self, pipeline: Pipeline) -> None:
         await self._report(pipeline, RuntimeState.STARTING)
         catalog = await self._source.prepare(pipeline)
+        async with self._sinks(pipeline) as sink:
+            if pipeline.needs_snapshot:
+                await self._snapshot(pipeline, catalog, sink)
+            else:
+                await self._source.ensure_slot(pipeline)
+            await self._stream(pipeline, catalog, sink)
+
+    async def _snapshot(self, pipeline: Pipeline, catalog: SourceCatalog, sink: EventSink) -> None:
+        await self._report(pipeline, RuntimeState.SNAPSHOTTING)
+        async with self._source.snapshot(pipeline) as session:
+            result = await SnapshotCapture(pipeline, catalog, sink).run(session)
+            consistent_point = session.consistent_point
+        # Streaming continues right after the snapshot. If the process dies before the
+        # pipeline is marked below, the next attempt simply takes a new snapshot.
+        await self._checkpoints.save(pipeline.name, consistent_point)
+        async with self._uow() as uow:
+            stored = await uow.pipelines.get(pipeline.name)
+            if stored is not None and stored.needs_snapshot:
+                stored.complete_snapshot()
+                await uow.pipelines.save(stored)
+                await uow.commit()
+        pipeline.complete_snapshot()
+        logger.info(
+            "pipeline %s: snapshot of %d rows done at %s",
+            pipeline.name,
+            result.total,
+            consistent_point,
+        )
+
+    async def _stream(self, pipeline: Pipeline, catalog: SourceCatalog, sink: EventSink) -> None:
         start_lsn = await self._checkpoints.load(pipeline.name)
-        async with (
-            self._sinks(pipeline) as sink,
-            self._source.open(pipeline, start_lsn) as session,
-        ):
+        async with self._source.open(pipeline, start_lsn) as session:
             capture = ChangeCapture(
                 pipeline, catalog, session, sink, self._checkpoints, self._policy
             )
