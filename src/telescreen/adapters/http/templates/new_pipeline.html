@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}New pipeline · telescreen{% endblock %}
+{% block content %}
+<p><a href="/">← All pipelines</a></p>
+<h1>New pipeline</h1>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+<div class="panel">
+  <form class="form" method="post" action="/pipelines">
+    <label><span>Name</span>
+      <input name="name" required pattern="[A-Za-z0-9_\-]+" value="{{ form.name or '' }}" placeholder="shop">
+    </label>
+    <label><span>Source DSN reference</span>
+      <input name="dsn" required value="{{ form.dsn or '' }}" placeholder="env:SHOP_DSN">
+    </label>
+    <label><span>Tables, one per line</span>
+      <textarea name="tables" rows="4" required placeholder="public.customers&#10;public.orders">{{ form.tables or '' }}</textarea>
+    </label>
+    <label><span>Topic prefix (defaults to the name)</span>
+      <input name="topic_prefix" value="{{ form.topic_prefix or '' }}">
+    </label>
+    <button class="primary">Create</button>
+  </form>
+</div>
+{% endblock %}

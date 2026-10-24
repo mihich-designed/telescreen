@@ -1,4 +1,4 @@
-"""Pipeline definitions read from a YAML file."""
+"""Pipeline definitions read from a YAML file, for bulk import."""
 
 from __future__ import annotations
 
@@ -7,8 +7,7 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
-from telescreen.domain.pipeline import Pipeline, SinkSpec, SourceSpec
-from telescreen.domain.table import TableName
+from telescreen.application.pipelines import CreatePipeline
 
 
 class _Model(BaseModel):
@@ -32,17 +31,15 @@ class PipelineModel(_Model):
     tables: list[str] = Field(min_length=1)
     sink: SinkModel = SinkModel()
 
-    def to_domain(self) -> Pipeline:
-        default = f"telescreen_{self.name.replace('-', '_')}"
-        return Pipeline(
+    def to_command(self) -> CreatePipeline:
+        return CreatePipeline(
             name=self.name,
-            source=SourceSpec(
-                dsn=self.source.dsn,
-                publication=self.source.publication or default,
-                slot=self.source.slot or default,
-            ),
-            sink=SinkSpec(kind=self.sink.kind, topic_prefix=self.sink.topic_prefix or self.name),
-            tables=tuple(TableName.parse(t) for t in self.tables),
+            dsn=self.source.dsn,
+            tables=self.tables,
+            publication=self.source.publication,
+            slot=self.source.slot,
+            sink_kind=self.sink.kind,
+            topic_prefix=self.sink.topic_prefix,
         )
 
 
@@ -50,6 +47,6 @@ class PipelinesFile(_Model):
     pipelines: list[PipelineModel]
 
 
-def load_pipelines(path: Path) -> list[Pipeline]:
+def load_pipelines(path: Path) -> list[CreatePipeline]:
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    return [p.to_domain() for p in PipelinesFile.model_validate(data).pipelines]
+    return [p.to_command() for p in PipelinesFile.model_validate(data).pipelines]

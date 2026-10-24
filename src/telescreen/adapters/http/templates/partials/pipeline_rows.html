@@ -1,0 +1,18 @@
+{% for view in views %}
+{% set p = view.pipeline %}
+{% set rt = view.runtime %}
+<tr>
+  <td><a href="/pipelines/{{ p.name }}">{{ p.name }}</a></td>
+  <td><span class="badge s-{{ p.status.value }}">{{ p.status.value }}</span></td>
+  <td>
+    {% if rt %}<span class="badge s-{{ rt.state.value }}">{{ rt.state.value }}</span>
+    {% else %}<span class="badge s-idle">idle</span>{% endif %}
+  </td>
+  <td>{{ p.tables | length }}</td>
+  <td><code>{{ view.checkpoint or "—" }}</code></td>
+  <td class="num">{{ (rt.lag_bytes if rt else None) | human_bytes }}</td>
+  <td class="muted">{{ rt.updated_at.strftime("%H:%M:%S") if rt and rt.updated_at else "—" }}</td>
+</tr>
+{% else %}
+<tr><td colspan="7" class="empty">Nothing is being watched yet. <a href="/pipelines/new">Create a pipeline</a>.</td></tr>
+{% endfor %}

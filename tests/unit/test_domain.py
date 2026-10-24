@@ -1,8 +1,8 @@
 import pytest
 
-from telescreen.domain.errors import InvalidPipelineError
+from telescreen.domain.errors import InvalidPipelineError, InvalidTransitionError
 from telescreen.domain.lsn import Lsn
-from telescreen.domain.pipeline import Pipeline, SinkSpec, SourceSpec
+from telescreen.domain.pipeline import Pipeline, PipelineStatus, SinkSpec, SourceSpec
 from telescreen.domain.table import TableName
 
 
@@ -64,3 +64,43 @@ class TestPipeline:
         table = TableName("public", "orders")
         with pytest.raises(InvalidPipelineError, match="twice"):
             make_pipeline(tables=(table, table))
+
+
+class TestPipelineLifecycle:
+    def test_pause_and_resume(self) -> None:
+        pipeline = make_pipeline()
+        pipeline.pause()
+        assert pipeline.status is PipelineStatus.PAUSED
+        pipeline.resume()
+        assert pipeline.status is PipelineStatus.ACTIVE
+
+    def test_fail_and_retry(self) -> None:
+        pipeline = make_pipeline()
+        pipeline.fail("slot is gone")
+        assert pipeline.status is PipelineStatus.FAILED
+        assert pipeline.last_error == "slot is gone"
+        pipeline.retry()
+        assert pipeline.status is PipelineStatus.ACTIVE
+        assert pipeline.last_error is None
+
+    def test_delete_is_final(self) -> None:
+        pipeline = make_pipeline()
+        pipeline.delete()
+        assert pipeline.status is PipelineStatus.DELETING
+        for action in (pipeline.pause, pipeline.resume, pipeline.retry, pipeline.delete):
+            with pytest.raises(InvalidTransitionError):
+                action()
+
+    def test_resume_requires_paused(self) -> None:
+        with pytest.raises(InvalidTransitionError, match="not paused"):
+            make_pipeline().resume()
+
+    def test_retry_requires_failed(self) -> None:
+        with pytest.raises(InvalidTransitionError, match="not failed"):
+            make_pipeline().retry()
+
+    def test_paused_pipeline_cannot_fail(self) -> None:
+        pipeline = make_pipeline()
+        pipeline.pause()
+        with pytest.raises(InvalidTransitionError):
+            pipeline.fail("boom")

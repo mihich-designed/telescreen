@@ -34,3 +34,8 @@ INSERT INTO customers (email, full_name, phone) VALUES
 INSERT INTO orders (customer_id, status, total, meta) VALUES
     (1, 'paid', 19.84, '{"items": ["diary", "pen"]}'),
     (2, 'new', 101.00, '{"items": ["coffee"]}');
+
+\connect postgres
+
+-- Scratch database for integration tests of the metadata store.
+CREATE DATABASE telescreen_test;

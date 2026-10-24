@@ -8,13 +8,18 @@ from contextlib import AbstractAsyncContextManager
 import asyncpg
 
 from telescreen.adapters.postgres.replication import PsycopgReplicationSession
-from telescreen.application.ports import ReplicationSession, SecretResolver, SourceCatalog
+from telescreen.application.ports import (
+    FatalPipelineError,
+    ReplicationSession,
+    SecretResolver,
+    SourceCatalog,
+)
 from telescreen.domain.lsn import Lsn
 from telescreen.domain.pipeline import Pipeline
 from telescreen.domain.table import TableName
 
 
-class SourceSetupError(RuntimeError):
+class SourceSetupError(FatalPipelineError):
     pass
 
 
@@ -71,6 +76,32 @@ class PostgresReplicationSource:
             publication=pipeline.source.publication,
             start_lsn=start_lsn,
         )
+
+    async def slot_lag(self, pipeline: Pipeline) -> int | None:
+        connection = await asyncpg.connect(self._secrets.resolve(pipeline.source.dsn))
+        try:
+            lag = await connection.fetchval(
+                "SELECT pg_wal_lsn_diff(pg_current_wal_lsn(), confirmed_flush_lsn)::bigint "
+                "FROM pg_replication_slots WHERE slot_name = $1",
+                pipeline.source.slot,
+            )
+        finally:
+            await connection.close()
+        return int(lag) if lag is not None else None
+
+    async def teardown(self, pipeline: Pipeline) -> None:
+        connection = await asyncpg.connect(self._secrets.resolve(pipeline.source.dsn))
+        try:
+            await connection.execute(
+                "SELECT pg_drop_replication_slot(slot_name) FROM pg_replication_slots "
+                "WHERE slot_name = $1",
+                pipeline.source.slot,
+            )
+            await connection.execute(
+                f"DROP PUBLICATION IF EXISTS {quote_ident(pipeline.source.publication)}"
+            )
+        finally:
+            await connection.close()
 
     @staticmethod
     async def _ensure_publication(connection: asyncpg.Connection, pipeline: Pipeline) -> None:
