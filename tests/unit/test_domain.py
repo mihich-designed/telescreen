@@ -2,7 +2,13 @@ import pytest
 
 from telescreen.domain.errors import InvalidPipelineError, InvalidTransitionError
 from telescreen.domain.lsn import Lsn
-from telescreen.domain.pipeline import Pipeline, PipelineStatus, SinkSpec, SourceSpec
+from telescreen.domain.pipeline import (
+    Pipeline,
+    PipelineStatus,
+    SinkSpec,
+    SnapshotMode,
+    SourceSpec,
+)
 from telescreen.domain.table import TableName
 
 
@@ -104,3 +110,28 @@ class TestPipelineLifecycle:
         pipeline.pause()
         with pytest.raises(InvalidTransitionError):
             pipeline.fail("boom")
+
+
+class TestSnapshot:
+    def test_new_pipeline_waits_for_initial_snapshot(self) -> None:
+        pipeline = make_pipeline()
+        assert pipeline.snapshot is SnapshotMode.INITIAL
+        assert pipeline.needs_snapshot
+
+        pipeline.complete_snapshot()
+
+        assert pipeline.snapshot_completed
+        assert not pipeline.needs_snapshot
+
+    def test_snapshot_is_completed_once(self) -> None:
+        pipeline = make_pipeline()
+        pipeline.complete_snapshot()
+        with pytest.raises(InvalidTransitionError):
+            pipeline.complete_snapshot()
+
+    def test_streaming_only_pipeline_never_snapshots(self) -> None:
+        pipeline = make_pipeline()
+        pipeline.snapshot = SnapshotMode.NEVER
+        assert not pipeline.needs_snapshot
+        with pytest.raises(InvalidTransitionError):
+            pipeline.complete_snapshot()

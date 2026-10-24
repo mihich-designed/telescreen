@@ -3,6 +3,7 @@ from __future__ import annotations
 from sqlalchemy import (
     ARRAY,
     BigInteger,
+    Boolean,
     CheckConstraint,
     Column,
     DateTime,
@@ -42,6 +43,8 @@ pipelines = Table(
     Column("tables", ARRAY(Text), nullable=False),
     Column("status", String(16), nullable=False),
     Column("last_error", Text),
+    Column("snapshot_mode", String(16), nullable=False),
+    Column("snapshot_completed", Boolean, nullable=False, server_default="false"),
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
     Column(
         "updated_at",
@@ -51,6 +54,7 @@ pipelines = Table(
         onupdate=func.now(),
     ),
     CheckConstraint("status IN ('active', 'paused', 'failed', 'deleting')", name="status"),
+    CheckConstraint("snapshot_mode IN ('initial', 'never')", name="snapshot_mode"),
 )
 
 checkpoints = Table(

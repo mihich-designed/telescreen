@@ -7,7 +7,13 @@ from sqlalchemy import Row, delete, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from telescreen.adapters.persistence.tables import pipelines
-from telescreen.domain.pipeline import Pipeline, PipelineStatus, SinkSpec, SourceSpec
+from telescreen.domain.pipeline import (
+    Pipeline,
+    PipelineStatus,
+    SinkSpec,
+    SnapshotMode,
+    SourceSpec,
+)
 from telescreen.domain.table import TableName
 
 
@@ -23,6 +29,8 @@ def _to_row(pipeline: Pipeline) -> dict[str, Any]:
         "tables": [str(t) for t in pipeline.tables],
         "status": pipeline.status.value,
         "last_error": pipeline.last_error,
+        "snapshot_mode": pipeline.snapshot.value,
+        "snapshot_completed": pipeline.snapshot_completed,
     }
 
 
@@ -35,6 +43,8 @@ def _from_row(row: Row[Any]) -> Pipeline:
         tables=tuple(TableName.parse(t) for t in row.tables),
         status=PipelineStatus(row.status),
         last_error=row.last_error,
+        snapshot=SnapshotMode(row.snapshot_mode),
+        snapshot_completed=row.snapshot_completed,
     )
 
 
@@ -59,7 +69,11 @@ class SqlPipelineRepository:
         await self._session.execute(
             update(pipelines)
             .where(pipelines.c.id == pipeline.id)
-            .values(status=pipeline.status.value, last_error=pipeline.last_error)
+            .values(
+                status=pipeline.status.value,
+                last_error=pipeline.last_error,
+                snapshot_completed=pipeline.snapshot_completed,
+            )
         )
 
     async def remove(self, pipeline: Pipeline) -> None:

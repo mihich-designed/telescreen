@@ -27,6 +27,15 @@ class SinkSpec:
     topic_prefix: str
 
 
+class SnapshotMode(StrEnum):
+    """What to do with rows that already exist when a pipeline starts."""
+
+    # Copy every existing row, then stream changes made after the copy.
+    INITIAL = "initial"
+    # Only stream changes made after the replication slot was created.
+    NEVER = "never"
+
+
 class PipelineStatus(StrEnum):
     """The state an operator wants the pipeline to be in.
 
@@ -56,9 +65,11 @@ class Pipeline:
     source: SourceSpec
     sink: SinkSpec
     tables: tuple[TableName, ...]
+    snapshot: SnapshotMode = SnapshotMode.INITIAL
     id: uuid.UUID = field(default_factory=uuid.uuid4)
     status: PipelineStatus = PipelineStatus.ACTIVE
     last_error: str | None = None
+    snapshot_completed: bool = False
 
     def __post_init__(self) -> None:
         if not self.name or not self.name.replace("_", "").replace("-", "").isalnum():
@@ -70,6 +81,16 @@ class Pipeline:
 
     def topic_for(self, table: TableName) -> str:
         return f"{self.sink.topic_prefix}.{table.schema}.{table.name}"
+
+    @property
+    def needs_snapshot(self) -> bool:
+        """Existing rows still have to be copied before changes can be streamed."""
+        return self.snapshot is SnapshotMode.INITIAL and not self.snapshot_completed
+
+    def complete_snapshot(self) -> None:
+        if not self.needs_snapshot:
+            raise InvalidTransitionError(f"Pipeline {self.name!r} does not wait for a snapshot")
+        self.snapshot_completed = True
 
     def pause(self) -> None:
         self._move_to(PipelineStatus.PAUSED)
