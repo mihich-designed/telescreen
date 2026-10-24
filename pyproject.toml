@@ -5,15 +5,28 @@ description = "Big Brother is watching your WAL. Lightweight PostgreSQL change d
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
-dependencies = []
+dependencies = [
+    "aiokafka>=0.12",
+    "asyncpg>=0.30",
+    "psycopg2-binary>=2.9.10",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+telescreen-worker = "telescreen.bootstrap.worker:main"
 
 [dependency-groups]
 dev = [
+    "asyncpg-stubs>=0.32.0",
     "mypy>=1.13",
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
     "pytest-cov>=6.0",
     "ruff>=0.8",
+    "types-psycopg2>=2.9.21.20261008",
+    "types-pyyaml>=6.0.12.20260906",
 ]
 
 [build-system]
@@ -42,3 +55,8 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 addopts = "-ra"
+markers = ["integration: needs a running PostgreSQL (see README)"]
+
+[[tool.mypy.overrides]]
+module = ["aiokafka", "aiokafka.*"]
+ignore_missing_imports = true

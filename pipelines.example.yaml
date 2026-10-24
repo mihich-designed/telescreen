@@ -1,0 +1,14 @@
+pipelines:
+  - name: shop
+    source:
+      # A reference to a secret, never the connection string itself.
+      dsn: env:SHOP_DSN
+      # Optional, both default to telescreen_<name>.
+      publication: telescreen_shop
+      slot: telescreen_shop
+    tables:
+      - public.customers
+      - public.orders
+    sink:
+      kind: kafka
+      topic_prefix: shop
