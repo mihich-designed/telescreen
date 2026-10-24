@@ -15,6 +15,9 @@ class PipelineIn(BaseModel):
     slot: str | None = None
     sink_kind: str = "kafka"
     topic_prefix: str | None = None
+    initial_snapshot: bool = Field(
+        default=True, description="Copy existing rows before streaming changes"
+    )
 
     def to_command(self) -> CreatePipeline:
         return CreatePipeline(**self.model_dump())
@@ -31,6 +34,11 @@ class SinkOut(BaseModel):
     topic_prefix: str
 
 
+class SnapshotOut(BaseModel):
+    mode: str
+    completed: bool
+
+
 class RuntimeOut(BaseModel):
     state: str
     worker: str
@@ -45,6 +53,7 @@ class PipelineOut(BaseModel):
     tables: list[str]
     source: SourceOut
     sink: SinkOut
+    snapshot: SnapshotOut
     last_error: str | None
     checkpoint: str | None
     runtime: RuntimeOut | None
@@ -62,6 +71,9 @@ class PipelineOut(BaseModel):
                 slot=pipeline.source.slot,
             ),
             sink=SinkOut(kind=pipeline.sink.kind, topic_prefix=pipeline.sink.topic_prefix),
+            snapshot=SnapshotOut(
+                mode=pipeline.snapshot.value, completed=pipeline.snapshot_completed
+            ),
             last_error=pipeline.last_error,
             checkpoint=str(view.checkpoint) if view.checkpoint else None,
             runtime=RuntimeOut(

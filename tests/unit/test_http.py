@@ -17,7 +17,7 @@ from telescreen.application.ports import (
 )
 from telescreen.bootstrap.ioc import ServicesProvider
 from telescreen.domain.lsn import Lsn
-from telescreen.domain.pipeline import PipelineStatus
+from telescreen.domain.pipeline import PipelineStatus, SnapshotMode
 
 
 class MemoryProvider(Provider):
@@ -186,3 +186,30 @@ def test_checkpoint_is_rendered(client: TestClient, provider: MemoryProvider) ->
 
     assert client.get("/api/pipelines/shop").json()["checkpoint"] == "0/16B3748"
     assert "0/16B3748" in client.get("/pipelines/shop").text
+
+
+class TestSnapshotOption:
+    def test_api_defaults_to_initial_snapshot(self, client: TestClient) -> None:
+        assert create(client)["snapshot"] == {"mode": "initial", "completed": False}
+
+    def test_api_can_skip_snapshot(self, client: TestClient) -> None:
+        response = client.post(
+            "/api/pipelines",
+            json={"name": "shop", "dsn": "env:X", "tables": ["t"], "initial_snapshot": False},
+        )
+
+        assert response.json()["snapshot"] == {"mode": "never", "completed": False}
+
+    def test_form_checkbox(self, client: TestClient, database: MemoryDatabase) -> None:
+        assert 'name="initial_snapshot" value="true" checked' in client.get("/pipelines/new").text
+
+        client.post("/pipelines", data={"name": "a", "dsn": "env:X", "tables": "t"})
+        client.post(
+            "/pipelines",
+            data={"name": "b", "dsn": "env:X", "tables": "t", "initial_snapshot": "true"},
+        )
+
+        assert database.pipelines["a"].snapshot is SnapshotMode.NEVER
+        assert database.pipelines["b"].snapshot is SnapshotMode.INITIAL
+        assert "pending" in client.get("/pipelines/b").text
+        assert "changes only" in client.get("/pipelines/a").text

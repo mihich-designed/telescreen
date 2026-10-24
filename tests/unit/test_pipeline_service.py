@@ -8,7 +8,7 @@ from telescreen.application.pipelines import (
     PipelineService,
 )
 from telescreen.domain.errors import InvalidPipelineError, InvalidTransitionError
-from telescreen.domain.pipeline import PipelineStatus, SinkSpec, SourceSpec
+from telescreen.domain.pipeline import PipelineStatus, SinkSpec, SnapshotMode, SourceSpec
 from telescreen.domain.table import TableName
 
 
@@ -100,3 +100,15 @@ async def test_invalid_transition_leaves_state_untouched(
 async def test_unknown_pipeline(service: PipelineService) -> None:
     with pytest.raises(PipelineNotFoundError):
         await service.pause("ghost")
+
+
+async def test_snapshot_mode_follows_the_command(
+    service: PipelineService, database: MemoryDatabase
+) -> None:
+    await service.create(CreatePipeline(name="a", dsn="env:DSN", tables=["t"]))
+    await service.create(
+        CreatePipeline(name="b", dsn="env:DSN", tables=["u"], initial_snapshot=False)
+    )
+
+    assert database.pipelines["a"].needs_snapshot
+    assert database.pipelines["b"].snapshot is SnapshotMode.NEVER

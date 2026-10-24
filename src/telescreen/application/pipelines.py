@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from telescreen.application.ports import UnitOfWorkFactory
 from telescreen.domain.errors import InvalidPipelineError
-from telescreen.domain.pipeline import Pipeline, SinkSpec, SourceSpec
+from telescreen.domain.pipeline import Pipeline, SinkSpec, SnapshotMode, SourceSpec
 from telescreen.domain.table import TableName
 
 
@@ -28,6 +28,8 @@ class CreatePipeline:
     slot: str | None = None
     sink_kind: str = "kafka"
     topic_prefix: str | None = None
+    # Copy existing rows before streaming changes.
+    initial_snapshot: bool = True
 
 
 def default_replication_name(pipeline: str) -> str:
@@ -62,6 +64,7 @@ class PipelineService:
                 kind=command.sink_kind, topic_prefix=command.topic_prefix or command.name
             ),
             tables=tables,
+            snapshot=SnapshotMode.INITIAL if command.initial_snapshot else SnapshotMode.NEVER,
         )
         async with self._uow() as uow:
             existing = await uow.pipelines.list()

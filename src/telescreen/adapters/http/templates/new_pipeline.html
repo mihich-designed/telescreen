@@ -18,6 +18,10 @@
     <label><span>Topic prefix (defaults to the name)</span>
       <input name="topic_prefix" value="{{ form.topic_prefix or '' }}">
     </label>
+    <label class="check">
+      <input type="checkbox" name="initial_snapshot" value="true" {% if form.initial_snapshot %}checked{% endif %}>
+      Copy existing rows first, then stream changes
+    </label>
     <button class="primary">Create</button>
   </form>
 </div>

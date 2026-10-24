@@ -50,7 +50,8 @@ async def pipeline_rows(request: Request, queries: FromDishka[PipelineQueries]) 
 
 @router.get("/pipelines/new", response_class=HTMLResponse)
 async def new_pipeline(request: Request) -> Response:
-    return templates.TemplateResponse(request, "new_pipeline.html", {"form": {}, "error": None})
+    form = {"initial_snapshot": True}
+    return templates.TemplateResponse(request, "new_pipeline.html", {"form": form, "error": None})
 
 
 @router.post("/pipelines", response_class=HTMLResponse)
@@ -61,17 +62,25 @@ async def create_pipeline(
     dsn: Annotated[str, Form()],
     tables: Annotated[str, Form()],
     topic_prefix: Annotated[str, Form()] = "",
+    initial_snapshot: Annotated[bool, Form()] = False,
 ) -> Response:
     command = CreatePipeline(
         name=name.strip(),
         dsn=dsn.strip(),
         tables=[t for t in tables.replace(",", "\n").splitlines() if t.strip()],
         topic_prefix=topic_prefix.strip() or None,
+        initial_snapshot=initial_snapshot,
     )
     try:
         await service.create(command)
     except (DomainError, PipelineAlreadyExistsError) as exc:
-        form = {"name": name, "dsn": dsn, "tables": tables, "topic_prefix": topic_prefix}
+        form = {
+            "name": name,
+            "dsn": dsn,
+            "tables": tables,
+            "topic_prefix": topic_prefix,
+            "initial_snapshot": initial_snapshot,
+        }
         return templates.TemplateResponse(
             request, "new_pipeline.html", {"form": form, "error": str(exc)}, status_code=422
         )

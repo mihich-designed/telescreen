@@ -30,6 +30,7 @@ class PipelineModel(_Model):
     source: SourceModel
     tables: list[str] = Field(min_length=1)
     sink: SinkModel = SinkModel()
+    initial_snapshot: bool = True
 
     def to_command(self) -> CreatePipeline:
         return CreatePipeline(
@@ -40,6 +41,7 @@ class PipelineModel(_Model):
             slot=self.source.slot,
             sink_kind=self.sink.kind,
             topic_prefix=self.sink.topic_prefix,
+            initial_snapshot=self.initial_snapshot,
         )
 
 

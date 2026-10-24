@@ -39,7 +39,7 @@
     .badge { display: inline-block; padding: .05rem .5rem; border-radius: 999px; font-size: .8rem;
              border: 1px solid currentColor; }
     .s-active, .s-streaming { color: var(--ok); }
-    .s-paused, .s-starting, .s-retrying { color: var(--warn); }
+    .s-paused, .s-starting, .s-retrying, .s-snapshotting { color: var(--warn); }
     .s-failed, .s-deleting { color: var(--bad); }
     .s-idle { color: var(--idle); }
     .error { color: var(--bad); white-space: pre-wrap; }
@@ -55,6 +55,8 @@
     dt { color: var(--muted); }
     dd { margin: 0; overflow-wrap: anywhere; }
     label { display: block; margin-bottom: 1rem; }
+    label.check { display: flex; gap: .5rem; align-items: center; }
+    label.check input { width: auto; }
     label span { display: block; font-size: .9rem; color: var(--muted); margin-bottom: .25rem; }
     input, textarea { width: 100%; font: inherit; padding: .5rem; border-radius: 6px;
                       border: 1px solid var(--border); background: var(--bg); color: var(--text); }

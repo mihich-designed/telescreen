@@ -32,6 +32,10 @@
     <dt>Sink</dt><dd>{{ p.sink.kind }}</dd>
     <dt>Tables</dt>
     <dd>{% for t in p.tables %}<code>{{ t }}</code> → <code>{{ p.topic_for(t) }}</code><br>{% endfor %}</dd>
+    <dt>Snapshot</dt>
+    <dd>{% if p.snapshot.value == "never" %}<span class="muted">disabled, changes only</span>
+        {% elif p.snapshot_completed %}done
+        {% else %}<span class="badge s-snapshotting">pending</span>{% endif %}</dd>
     <dt>Checkpoint</dt><dd><code>{{ view.checkpoint or "—" }}</code></dd>
     {% if rt %}
     <dt>Worker</dt><dd>{{ rt.worker }} · <span class="badge s-{{ rt.state.value }}">{{ rt.state.value }}</span></dd>
